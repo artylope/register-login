@@ -1,0 +1,12 @@
+body{
+  background: lightyellow;
+}
+
+input{
+  margin-left: 10px;
+}
+
+
+header,footer{
+  color: lightgrey;
+}
