@@ -16,7 +16,7 @@ class Register extends React.Component {
                     password
                     <input name="password"/>
                 </p>
-                <input type="submit" name="Create Account"/>
+                <button type="submit">Create Account</button>
             </form>
           </div>
         </Template>

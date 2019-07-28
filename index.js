@@ -16,10 +16,17 @@ const config = {
   port: 5432,
 };
 
-// Allow use of SHA265 hashing library
-var sha256 = require('js-sha256');
+const pool = new pg.Pool(config);
 
-const SALT = "my very special mushroom sauce with pepper";
+pool.on('error', function (err) {
+  console.log('idle client error', err.message, err.stack);
+});
+
+
+// Allow use of SHA265 hashing library
+// var sha256 = require('js-sha256');
+
+// const SALT = "my very special mushroom sauce with pepper";
 
 // Allow use of cookie parser
 const cookieParser = require('cookie-parser')
@@ -66,15 +73,114 @@ var redirectApp = function(request, response){
 }
 
 var appPage = function(request, response){
-  response.render('app');
+
+  let user = request.cookies.user_id;
+  let loggedIn = request.cookies.loggedin;
+
+  console.log(request.cookies.user_id);
+  console.log(request.cookies.loggedin);
+
+  const queryString = `SELECT * FROM users WHERE id = $1`;
+  const values = [user];
+
+    pool.query(queryString, values, (err, result) => {
+
+        // let requestSessionCookie = sha256(cookie.user_id + 'loggedin' + special);
+
+
+        if (err) {
+            console.log('query error:', err.stack);
+            response.send( 'query error' );
+        } else {
+
+            console.log("inside query");
+            console.log(request.cookies.loggedin);
+            console.log("type of cookies.loggedin");
+            console.log(typeof request.cookies.loggedin);
+            console.log("type of true");
+            console.log(typeof 'true');
+            console.log("inside query results");
+            console.log(result.rows[0]);
+
+            // response.send(result.rows[0]);
+            if (request.cookies.loggedin === 'true'){
+
+                response.send(result.rows[0]);
+
+            } else {
+                response.send('WRONGGGGG USERRRR!!!')
+            }
+        }
+
+    })
 }
 
 var registerPage = function(request, response){
   response.render('register');
 }
 
+var createUser = function(request, response){
+
+  const input = request.body;
+  const queryString = "INSERT INTO users (username, password) VALUES ($1, $2) RETURNING *";
+  const values = [input.username, input.password];
+
+  pool.query(queryString, values, (err, result) => {
+
+    console.log("YAY");
+    console.log(result.rows[0]);
+
+    // check to see if err is null
+    if(err){
+      console.log("error");
+      console.log(err);
+    } else {
+      response.cookie('loggedin', true);
+      response.cookie('user_id', result.rows[0].id);
+      response.send('worked');
+    }
+
+  });
+
+}
+
 var loginPage = function(request, response){
   response.render('login');
+}
+
+
+var verifyLogin = function(request, response){
+
+  let input = request.body;
+
+  const queryString = `SELECT * FROM users WHERE username = $1`;
+  const values = [input.username];
+
+  pool.query(queryString, values, (err, result) => {
+      // let hashedPass = sha256(newUser.password);
+
+      if (err) {
+          console.log('query error:', err.stack);
+          response.send( 'query error' );
+      } else {
+          let user = result.rows[0];
+          console.log(user);
+
+          if (user === undefined){
+              response.send('PLEASE KEY IN CORRECT NAME / PASSWORD!!!!!!!!!!!');
+
+          } else if (input.password === user.password){
+              // let hashedCookie = sha256(user.id + 'loggedin' + special);
+              console.log('login successful')
+              response.cookie('loggedin', 'true')
+              response.cookie('user_id', user.id)
+              response.redirect(`/app`);
+          } else {
+              response.send('wrong password');
+          }
+      }
+  });
+
 }
 
 
@@ -88,8 +194,11 @@ app.get('/app', appPage);
 
 app.get('/register', registerPage);
 
+app.post('/users', createUser);
+
 app.get('/login', loginPage);
 
+app.post('/login', verifyLogin);
 
 
 
