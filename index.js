@@ -24,9 +24,8 @@ pool.on('error', function (err) {
 
 
 // Allow use of SHA265 hashing library
-// var sha256 = require('js-sha256');
-
-// const SALT = "my very special mushroom sauce with pepper";
+var sha256 = require('js-sha256');
+const SALT = "d2k1#2h5j*72&";
 
 // Allow use of cookie parser
 const cookieParser = require('cookie-parser')
@@ -86,7 +85,7 @@ var appPage = function(request, response){
     pool.query(queryString, values, (err, result) => {
 
         // let requestSessionCookie = sha256(cookie.user_id + 'loggedin' + special);
-
+        const inputSessionCookie = sha256( user + 'true' + SALT );
 
         if (err) {
             console.log('query error:', err.stack);
@@ -103,9 +102,14 @@ var appPage = function(request, response){
             console.log(result.rows[0]);
 
             // response.send(result.rows[0]);
-            if (request.cookies.loggedin === 'true'){
+            if (inputSessionCookie === request.cookies.loggedin){
 
-                response.send(result.rows[0]);
+
+                 var data = {
+                   user : result.rows[0]
+                 }
+
+                 response.render('app', data);
 
             } else {
                 response.send('WRONGGGGG USERRRR!!!')
@@ -122,8 +126,9 @@ var registerPage = function(request, response){
 var createUser = function(request, response){
 
   const input = request.body;
+  const hashedPassword = sha256(input.password + SALT);
   const queryString = "INSERT INTO users (username, password) VALUES ($1, $2) RETURNING *";
-  const values = [input.username, input.password];
+  const values = [input.username, hashedPassword];
 
   pool.query(queryString, values, (err, result) => {
 
@@ -135,9 +140,13 @@ var createUser = function(request, response){
       console.log("error");
       console.log(err);
     } else {
-      response.cookie('loggedin', true);
+
+      var user_id = result.rows[0].id;
+
+      const currentSessionCookie = sha256( user_id + 'true' + SALT );
+      response.cookie('loggedin', currentSessionCookie);
       response.cookie('user_id', result.rows[0].id);
-      response.send('worked');
+      response.redirect('/app');
     }
 
   });
@@ -152,7 +161,7 @@ var loginPage = function(request, response){
 var verifyLogin = function(request, response){
 
   let input = request.body;
-
+  const hashedPassword = sha256(input.password + SALT);
   const queryString = `SELECT * FROM users WHERE username = $1`;
   const values = [input.username];
 
@@ -164,16 +173,18 @@ var verifyLogin = function(request, response){
           response.send( 'query error' );
       } else {
           let user = result.rows[0];
+          var user_id = result.rows[0].id;
+
           console.log(user);
 
           if (user === undefined){
               response.send('PLEASE KEY IN CORRECT NAME / PASSWORD!!!!!!!!!!!');
 
-          } else if (input.password === user.password){
-              // let hashedCookie = sha256(user.id + 'loggedin' + special);
+          } else if (hashedPassword === user.password){
+              const currentSessionCookie = sha256( user_id + 'true' + SALT );
               console.log('login successful')
-              response.cookie('loggedin', 'true')
-              response.cookie('user_id', user.id)
+              response.cookie('loggedin', currentSessionCookie);
+              response.cookie('user_id', user.id);
               response.redirect(`/app`);
           } else {
               response.send('wrong password');
@@ -181,6 +192,12 @@ var verifyLogin = function(request, response){
       }
   });
 
+}
+
+var logoutFunction = function(request, response){
+  response.clearCookie('user_id', request.cookies['user_id']);
+  response.clearCookie('loggedin', request.cookies['loggedin']);
+  response.redirect(`/login`);
 }
 
 
@@ -199,6 +216,8 @@ app.post('/users', createUser);
 app.get('/login', loginPage);
 
 app.post('/login', verifyLogin);
+
+app.get('/logout', logoutFunction);
 
 
 
